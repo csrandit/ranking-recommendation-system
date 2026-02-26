@@ -50,21 +50,63 @@ class MovieLensDataLoader:
         train_df = pd.concat(train_parts).reset_index(drop=True)
         test_df = pd.concat(test_parts).reset_index(drop=True)
 
-        return train_df, test_df
+        return (
+            train_df[["user_id", "item_id", "rating"]],
+            test_df[["user_id", "item_id", "rating"]]
+        )
 
 
 if __name__ == "__main__":
+    from src.models.popularity import PopularityRecommender
+    from src.evaluation.evaluator import RecommenderEvaluator
+    from src.models.user_cf import UserBasedCF
+
     loader = MovieLensDataLoader("data/raw/ml-100k")
 
     full_ratings = loader.load_ratings()
     train_set, test_set = loader.train_test_split(full_ratings)
 
-    from src.models.popularity import PopularityRecommender
+    print("\nTrain size:", len(train_set))
+    print("Test size:", len(test_set))
 
+    print("\nTrain set preview:")
+    print(train_set.head())
+
+    print("\nTest set preview:")
+    print(test_set.head())
+
+    print("\nTrain columns:", train_set.columns)
+
+    # =========================
+    # Popularity Model
+    # =========================
     model = PopularityRecommender()
     model.fit(train_set)
 
-    print("Top 5 popular items:", model.recommend(user_id=1, k=5))
-    print("Total interactions:", len(full_ratings))
+    print("\nTop 5 popular items:", model.recommend(user_id=1, k=5))
+
+    evaluator = RecommenderEvaluator(model, train_set, test_set)
+    results = evaluator.evaluate(k=10)
+
+    print("\nPopularity Results:")
+    for metric, value in results.items():
+        print(f"{metric}: {value:.4f}")
+
+    # =========================
+    # User-Based CF
+    # =========================
+    print("\nTraining User-Based CF model...")
+
+    user_cf = UserBasedCF(k_neighbors=20)
+    user_cf.fit(train_set)
+
+    evaluator_cf = RecommenderEvaluator(user_cf, train_set, test_set)
+    results_cf = evaluator_cf.evaluate(k=10)
+
+    print("\nUser-Based CF Results:")
+    for metric_name, metric_value in results_cf.items():
+        print(f"{metric_name}: {metric_value:.4f}")
+
+    print("\nTotal interactions:", len(full_ratings))
     print("Train interactions:", len(train_set))
     print("Test interactions:", len(test_set))
