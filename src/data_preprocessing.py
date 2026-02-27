@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # =========================
     print("\nTraining User-Based CF model...")
 
-    user_cf = UserBasedCF(k_neighbors=20)
+    user_cf = UserBasedCF(k_neighbors=40)
     user_cf.fit(train_set)
 
     evaluator_cf = RecommenderEvaluator(user_cf, train_set, test_set)
