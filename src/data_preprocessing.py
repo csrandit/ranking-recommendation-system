@@ -107,6 +107,39 @@ if __name__ == "__main__":
     for metric_name, metric_value in results_cf.items():
         print(f"{metric_name}: {metric_value:.4f}")
 
+    # =========================
+    # Item-Based CF
+    # =========================
+    from src.models.item_cf import ItemBasedCF
+
+    print("\nTraining Item-Based CF model...")
+
+    item_cf = ItemBasedCF(k_similar=20)
+    item_cf.fit(train_set)
+
+    evaluator_item = RecommenderEvaluator(item_cf, train_set, test_set)
+    results_item = evaluator_item.evaluate(k=10)
+
+    print("\nItem-Based CF Results:")
+    for metric_name, metric_value in results_item.items():
+        print(f"{metric_name}: {metric_value:.4f}")
+
+    # =========================
+    # SVD Model
+    # =========================
+    from src.models.svd_model import SVDRecommender
+
+    print("\nTraining SVD model...")
+
+    svd_model = SVDRecommender()
+    svd_model.fit(train_set)
+
+    evaluator_svd = RecommenderEvaluator(svd_model, train_set, test_set)
+    results_svd = evaluator_svd.evaluate(k=10)
+
+    print("\nSVD Results:")
+    for metric_name, metric_value in results_svd.items():
+        print(f"{metric_name}: {metric_value:.4f}")
     print("\nTotal interactions:", len(full_ratings))
     print("Train interactions:", len(train_set))
     print("Test interactions:", len(test_set))
