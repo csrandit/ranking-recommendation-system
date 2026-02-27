@@ -1,67 +1,64 @@
-
 import pandas as pd
-from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 
 class ItemBasedCF:
     """
-    Item-Based Collaborative Filtering Recommender
+    Item-Based Collaborative Filtering using cosine similarity.
     """
 
     def __init__(self, k_similar: int = 20):
         self.k_similar = k_similar
-        self.user_item_matrix = None
         self.item_similarity = None
+        self.user_item_matrix = None
 
     def fit(self, train_df: pd.DataFrame):
         """
-        Build user-item matrix and compute item-item similarity.
+        Train model by building item-item similarity matrix.
         """
 
-        # Build user-item matrix
+        # Create user-item matrix
         self.user_item_matrix = train_df.pivot_table(
             index="user_id",
             columns="item_id",
             values="rating"
         ).fillna(0)
 
-        # Transpose to compute item-item similarity
-        item_matrix = self.user_item_matrix.T
+        # Compute cosine similarity between items
+        item_matrix = self.user_item_matrix.T.values
 
-        similarity_matrix = cosine_similarity(item_matrix)
+        norm = np.linalg.norm(item_matrix, axis=1, keepdims=True)
+        norm[norm == 0] = 1e-10
+
+        normalized = item_matrix / norm
+        similarity = normalized @ normalized.T
 
         self.item_similarity = pd.DataFrame(
-            similarity_matrix,
-            index=item_matrix.index,
-            columns=item_matrix.index
+            similarity,
+            index=self.user_item_matrix.columns,
+            columns=self.user_item_matrix.columns
         )
 
     def recommend(self, user_id: int, k: int = 10):
         """
-        Recommend top-k items for a given user.
+        Recommend items for existing user.
         """
 
         if user_id not in self.user_item_matrix.index:
             return []
 
         user_ratings = self.user_item_matrix.loc[user_id]
-        rated_items = user_ratings[user_ratings > 0]
+        liked_items = user_ratings[user_ratings > 0].index.tolist()
 
         scores = {}
 
-        for item_id, rating in rated_items.items():
+        for item in liked_items:
+            similar_items = self.item_similarity[item] \
+                .sort_values(ascending=False)[1:self.k_similar + 1]
 
-            similar_items = self.item_similarity[item_id] \
-                .drop(item_id) \
-                .nlargest(self.k_similar)
-
-            for sim_item, sim_score in similar_items.items():
-                if user_ratings[sim_item] == 0:  # not rated yet
-                    scores.setdefault(sim_item, 0)
-                    scores[sim_item] += sim_score * rating
-
-        if not scores:
-            return []
+            for sim_item, similarity_score in similar_items.items():
+                if user_ratings[sim_item] == 0:
+                    scores[sim_item] = scores.get(sim_item, 0) + similarity_score
 
         ranked_items = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 

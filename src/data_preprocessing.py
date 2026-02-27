@@ -24,6 +24,19 @@ class MovieLensDataLoader:
         )
 
         return ratings_df
+    def load_movies(self):
+        file_path = self.data_dir / "u.item"
+
+        movies_df = pd.read_csv(
+            file_path,
+            sep="|",
+            encoding="latin-1",
+            header=None,
+            usecols=[0, 1],
+            names=["item_id", "title"]
+        )
+
+        return movies_df
 
     @staticmethod
     def train_test_split(
@@ -145,7 +158,6 @@ if __name__ == "__main__":
     print("\nSVD Results:")
     for metric_name, metric_value in results_svd.items():
         print(f"{metric_name}: {metric_value:.4f}")
-
 
 
     print("\nTotal interactions:", len(full_ratings))
