@@ -131,7 +131,12 @@ if __name__ == "__main__":
 
     print("\nTraining SVD model...")
 
-    svd_model = SVDRecommender()
+    svd_model = SVDRecommender(
+        n_factors=100,
+        n_epochs=50,
+        lr_all=0.007,
+        reg_all=0.02
+    )
     svd_model.fit(train_set)
 
     evaluator_svd = RecommenderEvaluator(svd_model, train_set, test_set)
@@ -140,6 +145,9 @@ if __name__ == "__main__":
     print("\nSVD Results:")
     for metric_name, metric_value in results_svd.items():
         print(f"{metric_name}: {metric_value:.4f}")
+
+
+
     print("\nTotal interactions:", len(full_ratings))
     print("Train interactions:", len(train_set))
     print("Test interactions:", len(test_set))
