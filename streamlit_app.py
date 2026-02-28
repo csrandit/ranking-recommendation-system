@@ -2,161 +2,160 @@ import streamlit as st
 import requests
 import os
 import re
+from src.core.recommender_engine import RecommenderEngine
+from dotenv import load_dotenv
 
-from src.data_preprocessing import MovieLensDataLoader
-from src.models.user_cf import UserBasedCF
+# =====================================================
+# LOAD ENV
+# =====================================================
 
+load_dotenv()
 
-# ======================================
+# =====================================================
 # PAGE CONFIG
-# ======================================
+# =====================================================
 
 st.set_page_config(
     page_title="AI Movie Recommender",
     layout="wide"
 )
 
-# ======================================
-# DARK MODE STYLE
-# ======================================
+# =====================================================
+# GLOBAL STYLING (Dark Theme)
+# =====================================================
 
 st.markdown("""
-    <style>
-        body {
-            background-color: #0E1117;
-            color: white;
-        }
-        .stApp {
-            background-color: #0E1117;
-        }
-    </style>
+<style>
+html, body, [class*="css"]  {
+    background-color: #0E1117;
+    color: white;
+}
+
+.stMultiSelect label {
+    color: white !important;
+}
+
+div.stButton > button {
+    background-color: #E50914;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    height: 3.2em;
+    width: 100%;
+    border: none;
+    transition: 0.3s ease-in-out;
+}
+
+div.stButton > button:hover {
+    background-color: #b20710;
+    transform: scale(1.03);
+    color: white;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# ======================================
-# TOP BANNER
-# ======================================
-
-st.image(
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba",
-    width="stretch"
-)
-
-st.markdown(
-    "<h1 style='text-align: center;'>🎬 AI Movie Recommender</h1>",
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    "<p style='text-align: center;'>Select at least 3 movies you like and get smart recommendations.</p>",
-    unsafe_allow_html=True
-)
-
-# ======================================
-# TMDB API KEY
-# ======================================
+# =====================================================
+# TMDB API
+# =====================================================
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 if not TMDB_API_KEY:
-    st.error("TMDB_API_KEY not found. Please set it as an environment variable.")
+    st.error("TMDB_API_KEY not found.")
     st.stop()
 
-# ======================================
-# LOAD MODEL + DATA (Cached)
-# ======================================
+# =====================================================
+# LOAD ENGINE
+# =====================================================
 
 @st.cache_resource
-def load_recommender_system():
-    data_loader = MovieLensDataLoader("data/raw/ml-100k")
+def initialize_engine():
+    service = RecommenderEngine()
+    service.load()
+    return service
 
-    ratings_dataframe = data_loader.load_ratings()
-    train_dataframe, _ = data_loader.train_test_split(ratings_dataframe)
+engine = initialize_engine()
 
-    recommender_model = UserBasedCF(k_neighbors=40)
-    recommender_model.fit(train_dataframe)
-
-    movies_dataframe = data_loader.load_movies()
-
-    return recommender_model, movies_dataframe
-
-
-recommender, movies_data = load_recommender_system()
-
-# ======================================
-# FETCH MOVIE POSTER
-# ======================================
+# =====================================================
+# FETCH POSTER
+# =====================================================
 
 @st.cache_data
-def fetch_movie_poster(movie_name: str):
+def fetch_movie_poster(title: str):
+    clean_title = re.sub(r"\(\d{4}\)", "", title).strip()
 
-    clean_name = re.sub(r"\(\d{4}\)", "", movie_name).strip()
+    url = "https://api.themoviedb.org/3/search/movie"
+    params = {"api_key": TMDB_API_KEY, "query": clean_title}
 
-    api_url = "https://api.themoviedb.org/3/search/movie"
-
-    parameters = {
-        "api_key": TMDB_API_KEY,
-        "query": clean_name
-    }
-
-    response = requests.get(api_url, params=parameters)
+    response = requests.get(url, params=params)
 
     if response.status_code == 200:
-        response_data = response.json()
-
-        if response_data.get("results"):
-            for result in response_data["results"]:
+        data = response.json()
+        if data.get("results"):
+            for result in data["results"]:
                 if result.get("poster_path"):
                     return f"https://image.tmdb.org/t/p/w500{result['poster_path']}"
 
     return "https://via.placeholder.com/300x450.png?text=No+Image"
 
-# ======================================
-# MOVIE SELECTION
-# ======================================
+# =====================================================
+# HERO SECTION (Local Image)
+# =====================================================
 
-user_selected_movies = st.multiselect(
-    "🎥 Select movies you like:",
-    movies_data["title"].tolist()
+st.image("assets/Hero.jpg", use_container_width=True)
+
+# =====================================================
+# MOVIE SELECTION
+# =====================================================
+
+st.subheader("Select at least 3 movies you like!")
+
+user_selection = st.multiselect(
+    "",
+    engine.movies_df["title"].tolist()
 )
 
-# ======================================
-# RECOMMENDATION BUTTON
-# ======================================
+st.markdown("<br>", unsafe_allow_html=True)
 
-if st.button("🚀 Recommend"):
+# =====================================================
+# RECOMMEND BUTTON
+# =====================================================
 
-    if len(user_selected_movies) < 3:
+recommend_clicked = st.button("Get My Recommendations")
+
+if recommend_clicked:
+
+    if len(user_selection) < 3:
         st.warning("Please select at least 3 movies.")
     else:
 
-        with st.spinner("🤖 AI is analyzing your taste..."):
+        with st.spinner("Analyzing your taste... 🤖"):
 
-            selected_movie_ids = movies_data[
-                movies_data["title"].isin(user_selected_movies)
+            selected_ids = engine.movies_df[
+                engine.movies_df["title"].isin(user_selection)
             ]["item_id"].tolist()
 
-            recommendations = recommender.recommend_for_new_user(
-                selected_movie_ids,
-                k=9,
-                return_scores=True
-            )
+            results = engine.recommend_for_new_user(selected_ids, k=9)
 
-        st.subheader("🎯 Recommended For You")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("Personalized Recommendations")
 
-        columns = st.columns(3)
+        cols = st.columns(3)
 
-        for index, (recommended_item_id, predicted_score) in enumerate(recommendations):
+        for idx, (item_id, score) in enumerate(results):
+            recommended_title = engine.movies_df[
+                engine.movies_df["item_id"] == item_id
+                ]["title"].values[0]
 
-            recommended_movie_name = movies_data[
-                movies_data["item_id"] == recommended_item_id
-            ]["title"].values[0]
+            poster = fetch_movie_poster(recommended_title)
 
-            poster_link = fetch_movie_poster(recommended_movie_name)
+            with cols[idx % 3]:
+                st.image(poster, use_container_width=True)
 
-            recommendation_reason = user_selected_movies[0]
-
-            with columns[index % 3]:
-                st.image(poster_link, width="stretch")
-                st.markdown(f"**{recommended_movie_name}**")
-                st.caption(f"⭐ Predicted Score: {predicted_score:.2f}")
-                st.caption(f"Because you liked {recommendation_reason}")
+                st.markdown(f"""
+                        <div style="text-align:center">
+                            <h4>{recommended_title}</h4>
+                            <p>⭐ Predicted Score: {score:.2f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
