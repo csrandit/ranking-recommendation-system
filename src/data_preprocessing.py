@@ -1,34 +1,78 @@
 import pandas as pd
 from pathlib import Path
+from typing import Optional
 
 
 class MovieLensDataLoader:
     """
-    Responsible for loading and splitting the MovieLens 100K dataset.
+    Responsible for loading MovieLens 100K dataset.
+    Falls back to online source if local files not found.
     """
 
-    def __init__(self, data_dir: str):
-        self.data_dir = Path(data_dir)
+    MOVIELENS_URL_BASE = "https://files.grouplens.org/datasets/movielens/ml-100k"
 
+    def __init__(self, data_dir: Optional[str] = None):
+        """
+        Parameters
+        ----------
+        data_dir : Optional[str]
+            Local path to ml-100k folder.
+            If None → data will be loaded from the official online source.
+        """
+        self.data_dir = Path(data_dir) if data_dir else None
+
+    # =========================
+    # Load Ratings
+    # =========================
     def load_ratings(self) -> pd.DataFrame:
         """
-        Load ratings data from u.data file.
+        Load ratings from local file if exists,
+        otherwise load directly from MovieLens website.
         """
-        file_path = self.data_dir / "u.data"
 
-        ratings_df = pd.read_csv(
-            file_path,
+        # Try local first
+        if self.data_dir:
+            local_path = self.data_dir / "u.data"
+            if local_path.exists():
+                return pd.read_csv(
+                    local_path,
+                    sep="\t",
+                    names=["user_id", "item_id", "rating", "timestamp"],
+                    engine="python"
+                )
+
+        # Fallback to online
+        url = f"{self.MOVIELENS_URL_BASE}/u.data"
+
+        return pd.read_csv(
+            url,
             sep="\t",
-            names=["user_id", "item_id", "rating", "timestamp"],
-            engine="python"
+            names=["user_id", "item_id", "rating", "timestamp"]
         )
 
-        return ratings_df
-    def load_movies(self):
-        file_path = self.data_dir / "u.item"
+    # =========================
+    # Load Movies Metadata
+    # =========================
+    def load_movies(self) -> pd.DataFrame:
 
-        movies_df = pd.read_csv(
-            file_path,
+        # Try local first
+        if self.data_dir:
+            local_path = self.data_dir / "u.item"
+            if local_path.exists():
+                return pd.read_csv(
+                    local_path,
+                    sep="|",
+                    encoding="latin-1",
+                    header=None,
+                    usecols=[0, 1],
+                    names=["item_id", "title"]
+                )
+
+        # Fallback to online
+        url = f"{self.MOVIELENS_URL_BASE}/u.item"
+
+        return pd.read_csv(
+            url,
             sep="|",
             encoding="latin-1",
             header=None,
@@ -36,8 +80,9 @@ class MovieLensDataLoader:
             names=["item_id", "title"]
         )
 
-        return movies_df
-
+    # =========================
+    # Train / Test Split
+    # =========================
     @staticmethod
     def train_test_split(
         ratings_df: pd.DataFrame,
@@ -53,7 +98,14 @@ class MovieLensDataLoader:
         test_parts = []
 
         for _, user_data in ratings_df.groupby("user_id"):
-            shuffled_user_data = user_data.sample(frac=1, random_state=seed)
+
+            if len(user_data) < 2:
+                continue  # avoid users with single interaction
+
+            shuffled_user_data = user_data.sample(
+                frac=1,
+                random_state=seed
+            )
 
             split_idx = int(len(shuffled_user_data) * (1 - test_size))
 
@@ -65,7 +117,7 @@ class MovieLensDataLoader:
 
         return (
             train_df[["user_id", "item_id", "rating"]],
-            test_df[["user_id", "item_id", "rating"]]
+            test_df[["user_id", "item_id", "rating"]],
         )
 
 

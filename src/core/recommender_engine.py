@@ -4,8 +4,7 @@ from src.models.user_cf import UserBasedCF
 
 class RecommenderEngine:
 
-    def __init__(self, data_path="data/raw/ml-100k", k_neighbors=40):
-        self.data_path = data_path
+    def __init__(self, k_neighbors=40):
         self.k_neighbors = k_neighbors
         self.model = None
         self.movies_df = None
@@ -15,7 +14,8 @@ class RecommenderEngine:
         Loads data, splits into train/test,
         trains the User-Based CF model.
         """
-        loader = MovieLensDataLoader(self.data_path)
+        # بدون مسار 👇
+        loader = MovieLensDataLoader()
 
         ratings = loader.load_ratings()
         train_df, _ = loader.train_test_split(ratings)

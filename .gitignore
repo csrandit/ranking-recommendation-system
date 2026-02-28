@@ -3,6 +3,5 @@ venv/
 .idea/
 __pycache__/
 *.pyc
-data/raw/
 .DS_Store
 .env
