@@ -85,8 +85,21 @@ src/
 └── …
 ---
 
+## 🎬 Live Demo
+
+[![Streamlit App](https://img.shields.io/badge/Streamlit-Live%20App-red?logo=streamlit)](https://intelligent-movie-recommender-engine.streamlit.app/)
+
+
+
+
+
+---
+
 ## ▶️ Run Locally
 
 ```bash
 pip install -r requirements.txt
 streamlit run streamlit_app.py
+
+
+
