@@ -215,3 +215,4 @@ if __name__ == "__main__":
     print("\nTotal interactions:", len(full_ratings))
     print("Train interactions:", len(train_set))
     print("Test interactions:", len(test_set))
+
